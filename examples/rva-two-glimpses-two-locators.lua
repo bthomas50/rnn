@@ -76,30 +76,25 @@ ds = dp.MnistPairs()--{transformer=create_transformer('RNN', 'CORNER_CROP_5')})
 
 --[[Model]]--
 local function makeLocationSensor(index)
-   local container = nn.Sequential()
-   container:add(nn.SelectTable(2))
-   container:add(nn.Select(2, index))
-   container:add(nn.Linear(2, opt.locatorHiddenSize))
-   container:add(nn[opt.transfer]())
-   return container
+  local container = nn.Sequential()
+  container:add(nn.SelectTable(2))
+  container:add(nn.Select(2, index))
+  container:add(nn.Linear(2, opt.locatorHiddenSize))
+  container:add(nn[opt.transfer]())
+  return container
 end
 
-glimpseSensor1 = nn.Sequential()
-glimpseSensor1:add(nn.ParallelTable():add(nn.Select(2, 1)):add(nn.Select(2, 1)))
-glimpseSensor1:add(nn.SpatialGlimpse(opt.glimpsePatchSize, opt.glimpseDepth, opt.glimpseScale):float())
-glimpseSensor1:add(nn.Collapse(3))
-glimpseSensor1:add(nn.Linear(ds:imageSize('c')*(opt.glimpsePatchSize^2)*opt.glimpseDepth, opt.glimpseHiddenSize))
-glimpseSensor1:add(nn[opt.transfer]())
-
-glimpseSensor2 = nn.Sequential()
-glimpseSensor2:add(nn.ParallelTable():add(nn.Select(2, 2)):add(nn.Select(2, 2)))
-glimpseSensor2:add(nn.SpatialGlimpse(opt.glimpsePatchSize, opt.glimpseDepth, opt.glimpseScale):float())
-glimpseSensor2:add(nn.Collapse(3))
-glimpseSensor2:add(nn.Linear(ds:imageSize('c')*(opt.glimpsePatchSize^2)*opt.glimpseDepth, opt.glimpseHiddenSize))
-glimpseSensor2:add(nn[opt.transfer]())
+local function makeGlimpseSensor(index)
+  local container = nn.Sequential()
+  container:add(nn.ParallelTable():add(nn.Select(2, index)):add(nn.Select(2, index)))
+  container:add(nn.SpatialGlimpse(opt.glimpsePatchSize, opt.glimpseDepth, opt.glimpseScale):float())
+  container:add(nn.Collapse(3))
+  container:add(nn.Linear(ds:imageSize('c')*(opt.glimpsePatchSize^2)*opt.glimpseDepth, opt.glimpseHiddenSize))
+  container:add(nn[opt.transfer]())
+end
 
 glimpse = nn.Sequential()
-glimpse:add(nn.ConcatTable():add(makeLocationSensor(1)):add(makeLocationSensor(2)):add(glimpseSensor1):add(glimpseSensor2))
+glimpse:add(nn.ConcatTable():add(makeLocationSensor(1)):add(makeLocationSensor(2)):add(makeGlimpseSensor(1)):add(makeGlimpseSensor(2)))
 glimpse:add(nn.JoinTable(1,1))
 glimpse:add(nn.Linear(2 * (opt.glimpseHiddenSize + opt.locatorHiddenSize), opt.imageHiddenSize))
 glimpse:add(nn[opt.transfer]())
