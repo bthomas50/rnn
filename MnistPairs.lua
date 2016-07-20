@@ -1,6 +1,3 @@
-require('dp')
-require('./ImagePairView.lua')
-
 local MnistPairs, Mnist = torch.class("dp.MnistPairs", "dp.Mnist")
 
 MnistPairs.isMnist = true

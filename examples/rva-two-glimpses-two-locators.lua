@@ -71,37 +71,43 @@ end
 --       opt.overwrite
 --    )
 -- else
-ds = dp.TransformedMnistPairs({transformer=create_transformer('RNN', 'CORNER_CROP_5')})
+ds = dp.MnistPairs()--{transformer=create_transformer('RNN', 'CORNER_CROP_5')})
 -- end
 
 --[[Model]]--
 
 -- glimpse network (rnn input layer)
-locationSensor = nn.Sequential()
-locationSensor:add(nn.SelectTable(2))
-locationSensor:add(nn.Linear(2, opt.locatorHiddenSize))
-locationSensor:add(nn[opt.transfer]())
+locationSensor1 = nn.Sequential()
+locationSensor1:add(nn.SelectTable(2))
+locationSensor1:add(nn.Select(2, 1))
+locationSensor1:add(nn.Linear(2, opt.locatorHiddenSize))
+locationSensor1:add(nn[opt.transfer]())
 
-glimpseSensor = nn.Sequential()
---glimpseSensor:add(nn.Copy('torch.Tensor', 'torch.Tensor', true))
-glimpseSensor:add(nn.ParallelTable():add(nn.Select(2, 1)):add(nn.Identity()))
-glimpseSensor:add(nn.SpatialGlimpse(opt.glimpsePatchSize, opt.glimpseDepth, opt.glimpseScale):float())
-glimpseSensor:add(nn.Collapse(3))
-glimpseSensor:add(nn.Linear(ds:imageSize('c')*(opt.glimpsePatchSize^2)*opt.glimpseDepth, opt.glimpseHiddenSize))
-glimpseSensor:add(nn[opt.transfer]())
+-- glimpse network (rnn input layer)
+locationSensor2 = nn.Sequential()
+locationSensor2:add(nn.SelectTable(2))
+locationSensor2:add(nn.Select(2, 2))
+locationSensor2:add(nn.Linear(2, opt.locatorHiddenSize))
+locationSensor2:add(nn[opt.transfer]())
+
+glimpseSensor1 = nn.Sequential()
+glimpseSensor1:add(nn.ParallelTable():add(nn.Select(2, 1)):add(nn.Select(2, 1)))
+glimpseSensor1:add(nn.SpatialGlimpse(opt.glimpsePatchSize, opt.glimpseDepth, opt.glimpseScale):float())
+glimpseSensor1:add(nn.Collapse(3))
+glimpseSensor1:add(nn.Linear(ds:imageSize('c')*(opt.glimpsePatchSize^2)*opt.glimpseDepth, opt.glimpseHiddenSize))
+glimpseSensor1:add(nn[opt.transfer]())
 
 glimpseSensor2 = nn.Sequential()
---glimpseSensor:add(nn.Copy('torch.Tensor', 'torch.Tensor', true))
-glimpseSensor2:add(nn.ParallelTable():add(nn.Select(2, 2)):add(nn.Identity()))
+glimpseSensor2:add(nn.ParallelTable():add(nn.Select(2, 2)):add(nn.Select(2, 2)))
 glimpseSensor2:add(nn.SpatialGlimpse(opt.glimpsePatchSize, opt.glimpseDepth, opt.glimpseScale):float())
 glimpseSensor2:add(nn.Collapse(3))
 glimpseSensor2:add(nn.Linear(ds:imageSize('c')*(opt.glimpsePatchSize^2)*opt.glimpseDepth, opt.glimpseHiddenSize))
 glimpseSensor2:add(nn[opt.transfer]())
 
 glimpse = nn.Sequential()
-glimpse:add(nn.ConcatTable():add(locationSensor):add(glimpseSensor):add(glimpseSensor2))
+glimpse:add(nn.ConcatTable():add(locationSensor1):add(locationSensor2):add(glimpseSensor1):add(glimpseSensor2))
 glimpse:add(nn.JoinTable(1,1))
-glimpse:add(nn.Linear(2 * opt.glimpseHiddenSize + opt.locatorHiddenSize, opt.imageHiddenSize))
+glimpse:add(nn.Linear(2 * (opt.glimpseHiddenSize + opt.locatorHiddenSize), opt.imageHiddenSize))
 glimpse:add(nn[opt.transfer]())
 glimpse:add(nn.Linear(opt.imageHiddenSize, opt.hiddenSize))
 
@@ -121,12 +127,13 @@ assert(ds:imageSize('h') == ds:imageSize('w'))
 
 -- actions (locator)
 locator = nn.Sequential()
-locator:add(nn.Linear(opt.hiddenSize, 2))
+locator:add(nn.Linear(opt.hiddenSize, 2*2))
 locator:add(nn.HardTanh()) -- bounds mean between -1 and 1
 locator:add(nn.ReinforceNormal(2*opt.locatorStd, opt.stochastic)) -- sample from normal, uses REINFORCE learning rule
 assert(locator:get(3).stochastic == opt.stochastic, "Please update the dpnn package : luarocks install dpnn")
 locator:add(nn.HardTanh()) -- bounds sample between -1 and 1
 locator:add(nn.MulConstant(opt.unitPixels*2/ds:imageSize("h")))
+locator:add(nn.Reshape(2,2))
 
 attention = nn.RecurrentAttention(rnn, locator, opt.rho, {opt.hiddenSize})
 

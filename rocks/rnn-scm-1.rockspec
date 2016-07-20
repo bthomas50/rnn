@@ -2,7 +2,7 @@ package = "rnn"
 version = "scm-1"
 
 source = {
-   url = "git://github.com/Element-Research/rnn",
+   url = "git://github.com/bthomas50/rnn",
    tag = "master"
 }
 

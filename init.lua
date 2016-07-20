@@ -27,6 +27,9 @@ torch.include('rnn', 'LinearNoBias.lua')
 torch.include('rnn', 'SAdd.lua')
 torch.include('rnn', 'CopyGrad.lua')
 torch.include('rnn', 'MnistPairs.lua')
+torch.include('rnn', 'TransformedMnistPairs.lua')
+
+torch.include('rnn', 'ImagePairView.lua')
 
 -- recurrent modules
 torch.include('rnn', 'LookupTableMaskZero.lua')
@@ -59,6 +62,9 @@ torch.include('rnn', 'SeqBRNN.lua')
 torch.include('rnn', 'SequencerCriterion.lua')
 torch.include('rnn', 'RepeaterCriterion.lua')
 torch.include('rnn', 'MaskZeroCriterion.lua')
+
+--stuff that we made
+
 
 -- prevent likely name conflicts
 nn.rnn = rnn

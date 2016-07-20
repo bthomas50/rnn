@@ -1,4 +1,3 @@
-require('dp')
 ------------------------------------------------------------------------
 --[[ ImageView ]]-- 
 -- A View holding a tensor of images.
