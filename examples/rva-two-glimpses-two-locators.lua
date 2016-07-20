@@ -75,20 +75,14 @@ ds = dp.MnistPairs()--{transformer=create_transformer('RNN', 'CORNER_CROP_5')})
 -- end
 
 --[[Model]]--
-
--- glimpse network (rnn input layer)
-locationSensor1 = nn.Sequential()
-locationSensor1:add(nn.SelectTable(2))
-locationSensor1:add(nn.Select(2, 1))
-locationSensor1:add(nn.Linear(2, opt.locatorHiddenSize))
-locationSensor1:add(nn[opt.transfer]())
-
--- glimpse network (rnn input layer)
-locationSensor2 = nn.Sequential()
-locationSensor2:add(nn.SelectTable(2))
-locationSensor2:add(nn.Select(2, 2))
-locationSensor2:add(nn.Linear(2, opt.locatorHiddenSize))
-locationSensor2:add(nn[opt.transfer]())
+local function makeLocationSensor(index)
+   local container = nn.Sequential()
+   container:add(nn.SelectTable(2))
+   container:add(nn.Select(2, index))
+   container:add(nn.Linear(2, opt.locatorHiddenSize))
+   container:add(nn[opt.transfer]())
+   return container
+end
 
 glimpseSensor1 = nn.Sequential()
 glimpseSensor1:add(nn.ParallelTable():add(nn.Select(2, 1)):add(nn.Select(2, 1)))
@@ -105,7 +99,7 @@ glimpseSensor2:add(nn.Linear(ds:imageSize('c')*(opt.glimpsePatchSize^2)*opt.glim
 glimpseSensor2:add(nn[opt.transfer]())
 
 glimpse = nn.Sequential()
-glimpse:add(nn.ConcatTable():add(locationSensor1):add(locationSensor2):add(glimpseSensor1):add(glimpseSensor2))
+glimpse:add(nn.ConcatTable():add(makeLocationSensor(1)):add(makeLocationSensor(2)):add(glimpseSensor1):add(glimpseSensor2))
 glimpse:add(nn.JoinTable(1,1))
 glimpse:add(nn.Linear(2 * (opt.glimpseHiddenSize + opt.locatorHiddenSize), opt.imageHiddenSize))
 glimpse:add(nn[opt.transfer]())
