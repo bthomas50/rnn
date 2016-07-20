@@ -13,6 +13,7 @@ torch.include('rnn', 'recursiveUtils.lua')
 
 -- extensions to nn.Module
 torch.include('rnn', 'Module.lua')
+torch.include('rnn', 'ScaledSpatialGlimpse.lua')
 
 -- override nn.Dropout
 torch.include('rnn', 'Dropout.lua')
@@ -26,10 +27,11 @@ torch.include('rnn', 'ZeroGrad.lua')
 torch.include('rnn', 'LinearNoBias.lua')
 torch.include('rnn', 'SAdd.lua')
 torch.include('rnn', 'CopyGrad.lua')
-torch.include('rnn', 'MnistPairs.lua')
-torch.include('rnn', 'TransformedMnistPairs.lua')
+
 
 torch.include('rnn', 'ImagePairView.lua')
+torch.include('rnn', 'MnistPairs.lua')
+torch.include('rnn', 'TransformedMnistPairs.lua')
 
 -- recurrent modules
 torch.include('rnn', 'LookupTableMaskZero.lua')
