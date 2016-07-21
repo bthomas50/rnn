@@ -71,7 +71,7 @@ end
 --       opt.overwrite
 --    )
 -- else
-ds = dp.MnistPairs()--{transformer=create_transformer('RNN', 'CORNER_CROP_5')})
+ds = dp.TransformedMnistPairs({transformer=create_transformer('RNN', 'CORNER_CROP_5')})
 -- end
 
 --[[Model]]--
@@ -91,6 +91,7 @@ local function makeGlimpseSensor(index)
   container:add(nn.Collapse(3))
   container:add(nn.Linear(ds:imageSize('c')*(opt.glimpsePatchSize^2)*opt.glimpseDepth, opt.glimpseHiddenSize))
   container:add(nn[opt.transfer]())
+  return container
 end
 
 glimpse = nn.Sequential()
