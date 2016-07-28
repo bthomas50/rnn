@@ -1,6 +1,8 @@
 require 'dp'
 require 'rnn'
 require 'optim'
+require './helpers/Drawing'
+require './helpers/CoordinateTransforms'
 
 -- References :
 -- A. http://papers.nips.cc/paper/5542-recurrent-models-of-visual-attention.pdf
@@ -70,29 +72,6 @@ if not opt.stochastic then
 end
 output = model:forward(input)
 
-function drawBox(img, bbox, channel)
-    channel = channel or 1
-
-    local x1, y1 = torch.round(bbox[1]), torch.round(bbox[2])
-    local x2, y2 = torch.round(bbox[1] + bbox[3]), torch.round(bbox[2] + bbox[4])
-
-    x1, y1 = math.max(1, x1), math.max(1, y1)
-    x2, y2 = math.min(img:size(3), x2), math.min(img:size(2), y2)
-
-    local max = img:max()
-
-    for i=x1,x2 do
-        img[channel][y1][i] = max
-        img[channel][y2][i] = max
-    end
-    for i=y1,y2 do
-        img[channel][i][x1] = max
-        img[channel][i][x2] = max
-    end
-
-    return img
-end
-
 locations = ra.actions
 
 input = nn.Convert(ds:ioShapes(),'bpchw'):forward(input)
@@ -123,15 +102,12 @@ for i=1,input:size(1) do
       local xy = location[i][j]
       -- (-1,-1) top left corner, (1,1) bottom right corner of image
       local x, y = xy:select(1,1), xy:select(1,2)
-      -- (0,0), (1,1)
-      x, y = (x+1)/2, (y+1)/2
-      -- (1,1), (input:size(3), input:size(4))
-      x, y = x*(input:size(3)-1)+1, y*(input:size(4)-1)+1
+      local imageX, imageY = locatorXYToImageXY(x, y, ds)
 
       local gimg = img:clone()
       for d=1,sg.depth do
          local size = sg.height*(sg.scale^(d-1))
-         local bbox = {y-size/2, x-size/2, size, size}
+         local bbox = {imageY-size/2, imageX-size/2, size, size}
          drawBox(gimg, bbox, 1)
       end
       glimpse[i] = gimg

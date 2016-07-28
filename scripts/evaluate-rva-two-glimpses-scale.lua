@@ -1,8 +1,9 @@
 require 'dp'
 require 'rnn'
 require 'optim'
-require './helpers/Drawing'
 require './helpers/CoordinateTransforms'
+require './helpers/Drawing'
+require '../../ml/src/core/transformers/transformer_factory'
 
 -- References :
 -- A. http://papers.nips.cc/paper/5542-recurrent-models-of-visual-attention.pdf
@@ -30,7 +31,7 @@ if opt.cuda then
 end
 
 xp = torch.load(opt.xpPath)
-model = xp:model().module 
+model = xp:model().module
 tester = xp:tester() or xp:validator() -- dp.Evaluator
 tester:sampler()._epoch_size = nil
 conf = tester:feedback() -- dp.Confusion
@@ -39,22 +40,10 @@ cm = conf._cm -- optim.ConfusionMatrix
 print("Last evaluation of "..(xp:tester() and 'test' or 'valid').." set :")
 print(cm)
 
-if opt.dataset == 'TranslatedMnist' then
-   ds = torch.checkpoint(
-      paths.concat(dp.DATA_DIR, 'checkpoint/dp.TranslatedMnist_test.t7'),
-      function() 
-         local ds = dp[opt.dataset]{load_all=false} 
-         ds:loadTest()
-         return ds
-         end, 
-      opt.overwrite
-   )
-else
-   ds = dp[opt.dataset]()
-end
+ds = dp.TransformedMnistPairs {transformer=create_transformer('RNN', 'CORNER_CROP_5')}
 
 ra = model:findModules('nn.RecurrentAttention')[1]
-sg = model:findModules('nn.SpatialGlimpse')[1]
+sg = model:findModules('nn.ScaledSpatialGlimpse')[1]
 
 -- stochastic or deterministic
 for i=1,#ra.actions do
@@ -74,6 +63,7 @@ inputs = ds:get('test','inputs')
 targets = ds:get('test','targets', 'b')
 
 input = inputs:narrow(1,1,10)
+
 model:training() -- otherwise the rnn doesn't save intermediate time-step states
 if not opt.stochastic then
    for i=1,#ra.actions do
@@ -83,75 +73,65 @@ if not opt.stochastic then
 end
 output = model:forward(input)
 
-function drawBox(img, bbox, channel)
-    channel = channel or 1
-
-    local x1, y1 = torch.round(bbox[1]), torch.round(bbox[2])
-    local x2, y2 = torch.round(bbox[1] + bbox[3]), torch.round(bbox[2] + bbox[4])
-
-    x1, y1 = math.max(1, x1), math.max(1, y1)
-    x2, y2 = math.min(img:size(3), x2), math.min(img:size(2), y2)
-
-    local max = img:max()
-
-    for i=x1,x2 do
-        img[channel][y1][i] = max
-        img[channel][y2][i] = max
-    end
-    for i=y1,y2 do
-        img[channel][i][x1] = max
-        img[channel][i][x2] = max
-    end
-
-    return img
-end
 
 locations = ra.actions
 
-input = nn.Convert(ds:ioShapes(),'bchw'):forward(input)
+input = nn.Convert(ds:ioShapes(),'bpchw'):forward(input)
 glimpses = {}
 patches = {}
 
 params = nil
+for k,location in ipairs(locations) do
+  glimpses[k] = {}
+  patches[k] = {}
+  for j = 1, 2 do
+    glimpses[k][j] = {}
+    patches[k][j] = {}
+  end
+end
+
 for i=1,input:size(1) do
-   local img = input[i]
-   for j,location in ipairs(locations) do
-      local glimpse = glimpses[j] or {}
-      glimpses[j] = glimpse
-      local patch = patches[j] or {}
-      patches[j] = patch
-      
-      local xy = location[i]
+  local images = input[i]
+  for k,location in ipairs(locations) do
+    for j=1, 2 do
+      local glimpse = glimpses[k][j]
+      local patch = patches[k][j]
+      local img = images:select(1,j)
+      local xyscale = location[i]
       -- (-1,-1) top left corner, (1,1) bottom right corner of image
-      local x, y = xy:select(1,1), xy:select(1,2)
+      local x, y, scale = xyscale:select(1,1), xyscale:select(1,2), xyscale:select(1,3)
       local imageX, imageY = locatorXYToImageXY(x, y, ds)
-      
       local gimg = img:clone()
       for d=1,sg.depth do
-         local size = sg.height*(sg.scale^(d-1))
-         local bbox = {imageY-size/2, imageX-size/2, size, size}
-         drawBox(gimg, bbox, 1)
+        local size = sg.height*(scale^(d-1))
+        local bbox = {imageY-size/2, imageX-size/2, size, size}
+        drawBox(gimg, bbox, 1)
       end
       glimpse[i] = gimg
-      
       local sg_, ps
-      if j == 1 then
-         sg_ = ra.rnn.initialModule:findModules('nn.SpatialGlimpse')[1]
+      if k == 1 then
+         sg_ = ra.rnn.initialModule:findModules('nn.ScaledSpatialGlimpse')[j]
       else
-         sg_ = ra.rnn.sharedClones[j]:findModules('nn.SpatialGlimpse')[1]
+         sg_ = ra.rnn.sharedClones[k]:findModules('nn.ScaledSpatialGlimpse')[j]
       end
       patch[i] = image.scale(img:clone():float(), sg_.output[i]:narrow(1,1,1):float())
-      
       collectgarbage()
-   end
+    end
+  end
 end
 
 paths.mkdir('glimpse')
-for j,glimpse in ipairs(glimpses) do
-   local g = image.toDisplayTensor{input=glimpse,nrow=10,padding=3}
-   local p = image.toDisplayTensor{input=patches[j],nrow=10,padding=3}
-   image.save("glimpse/glimpse"..j..".png", g)
-   image.save("glimpse/patch"..j..".png", p)
+
+for j, glimpse_pairs in ipairs(glimpses) do
+  local glimpse_to_save = torch.cat(glimpse_pairs[1][1], glimpse_pairs[2][1], 2)
+  local patches_to_save = torch.cat(patches[j][1][1], patches[j][2][1], 2)
+  for k = 2, 10 do
+    local glimpse_pair_to_save = torch.cat(glimpse_pairs[1][k], glimpse_pairs[2][k], 2)
+    local patch_pairs_to_save = torch.cat(patches[j][1][k], patches[j][2][k], 2)
+
+    glimpse_to_save = torch.cat(glimpse_to_save, glimpse_pair_to_save, 3)
+    patches_to_save = torch.cat(patches_to_save, patch_pairs_to_save, 3)
+  end
+  image.save("glimpse/glimpse"..j..".png", glimpse_to_save)
+  image.save("glimpse/patches"..j..".png", patches_to_save)
 end
-
-
