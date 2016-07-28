@@ -45,6 +45,9 @@ ds = dp.TransformedMnistPairs {transformer=create_transformer('RNN', 'CORNER_CRO
 ra = model:findModules('nn.RecurrentAttention')[1]
 sg = model:findModules('nn.ScaledSpatialGlimpse')[1]
 
+if not sg then
+  error('Network is the wrong type: there is no nn.ScaledSpatialGlimpse')
+end
 -- stochastic or deterministic
 for i=1,#ra.actions do
    local rn = ra.action:getStepModule(i):findModules('nn.ReinforceNormal')[1]

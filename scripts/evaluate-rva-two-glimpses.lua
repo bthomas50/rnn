@@ -109,9 +109,9 @@ for i=1,input:size(1) do
       glimpse[i] = gimg
       local sg_, ps
       if k == 1 then
-         sg_ = ra.rnn.initialModule:findModules('nn.SpatialGlimpse')[1]
+         sg_ = ra.rnn.initialModule:findModules('nn.SpatialGlimpse')[j]
       else
-         sg_ = ra.rnn.sharedClones[k]:findModules('nn.SpatialGlimpse')[1]
+         sg_ = ra.rnn.sharedClones[k]:findModules('nn.SpatialGlimpse')[j]
       end
       -- print(img:size())
       -- print(sg_.output[i]:size())
